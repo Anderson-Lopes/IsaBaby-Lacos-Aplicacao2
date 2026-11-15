@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Jost:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-ink font-sans antialiased;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display;
+  }
+  :focus-visible {
+    outline: 2px solid #FFFF00;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  .input-field {
+    @apply w-full min-h-[44px] rounded-xl bg-background border border-border px-3.5 py-2.5 text-sm text-ink placeholder:text-muted/60 transition-colors;
+  }
+  .input-field:hover {
+    @apply border-muted/50;
+  }
+  .input-field:focus {
+    @apply border-primary outline-none ring-1 ring-primary;
+  }
+  .input-field[aria-invalid='true'] {
+    @apply border-primary ring-1 ring-primary;
+  }
+}
+
+@layer utilities {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
