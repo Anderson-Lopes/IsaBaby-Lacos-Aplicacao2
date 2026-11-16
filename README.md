@@ -396,6 +396,11 @@ A licença do projeto será definida antes da disponibilização pública da apl
 
 **Projeto:** Sistema Web de Pedidos e Agendamentos de Laços Artesanais.
 
+
+Link para conexão e visualização do Projeto
+
+https://isababy-laces-manage-piv3.bolt.host
+
 **Versão:** 0.1.0
 
 **Status:** Especificação e planejamento do MVP.
