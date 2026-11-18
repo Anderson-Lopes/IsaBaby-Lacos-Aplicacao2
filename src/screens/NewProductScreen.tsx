@@ -1,13 +1,21 @@
 import { PlusCircle } from 'lucide-react';
 import type { Product } from '@/types';
+import type { ProductDraft } from '@/hooks/useShopData';
 import { ProductForm } from '@/components/catalog/ProductForm';
 
 interface NewProductScreenProps {
-  onSave: (data: Omit<Product, 'id' | 'createdAt'>) => void;
+  product?: Product;
+  onSave: (
+    data: ProductDraft,
+    files: File[],
+    productId?: string,
+    primaryImageRef?: string,
+    removedImageIds?: string[],
+  ) => Promise<void>;
   onCancel: () => void;
 }
 
-export function NewProductScreen({ onSave, onCancel }: NewProductScreenProps) {
+export function NewProductScreen({ product, onSave, onCancel }: NewProductScreenProps) {
   return (
     <section aria-labelledby="new-product-title">
       <div className="flex items-center gap-3 mb-5">
@@ -16,13 +24,13 @@ export function NewProductScreen({ onSave, onCancel }: NewProductScreenProps) {
         </div>
         <div>
           <h2 id="new-product-title" className="font-display text-xl font-semibold text-primary leading-tight">
-            Novo Cadastro
+            {product ? 'Editar produto' : 'Novo Cadastro'}
           </h2>
-          <p className="text-xs text-muted">Adicione um novo modelo ao catálogo.</p>
+          <p className="text-xs text-muted">{product ? 'Atualize o produto, o preço e as fotografias.' : 'Adicione um novo modelo ao catálogo.'}</p>
         </div>
       </div>
       <div className="rounded-2xl bg-surface border border-border p-4 sm:p-6 shadow-soft">
-        <ProductForm onSave={onSave} onCancel={onCancel} />
+        <ProductForm key={product?.id ?? 'new'} product={product} onSave={onSave} onCancel={onCancel} />
       </div>
     </section>
   );

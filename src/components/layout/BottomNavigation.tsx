@@ -1,19 +1,21 @@
-import { Store, PlusCircle, ClipboardList } from 'lucide-react';
+import { Store, ClipboardList, Shield, UserRound } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Screen } from '@/App';
 
 interface BottomNavigationProps {
   active: Screen;
   onChange: (screen: Screen) => void;
+  authenticated: boolean;
+  isAdmin: boolean;
 }
 
-const items: { id: Screen; label: string; icon: LucideIcon }[] = [
-  { id: 'catalog', label: 'Catálogo', icon: Store },
-  { id: 'newProduct', label: 'Cadastro', icon: PlusCircle },
-  { id: 'orders', label: 'Pedidos', icon: ClipboardList },
-];
-
-export function BottomNavigation({ active, onChange }: BottomNavigationProps) {
+export function BottomNavigation({ active, onChange, authenticated, isAdmin }: BottomNavigationProps) {
+  const items: { id: Screen; label: string; icon: LucideIcon }[] = [
+    { id: 'catalog', label: 'Catálogo', icon: Store },
+    ...(authenticated ? [{ id: 'orders' as Screen, label: 'Pedidos', icon: ClipboardList }] : []),
+    ...(isAdmin ? [{ id: 'admin' as Screen, label: 'Admin', icon: Shield }] : []),
+    ...(authenticated ? [{ id: 'account' as Screen, label: 'Conta', icon: UserRound }] : []),
+  ];
   return (
     <nav
       aria-label="Navegação principal"

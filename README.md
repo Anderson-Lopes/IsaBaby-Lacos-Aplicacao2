@@ -348,9 +348,9 @@ lacos-artesanais/
 
 ## 🛠️ 16. Tecnologias
 
-As tecnologias ainda serão definidas durante a etapa de arquitetura.
+O MVP disponível neste repositório usa React 18, TypeScript e Vite no frontend, com Supabase Auth, Postgres/RLS, Storage e Edge Functions no backend. O fluxo implementado inclui catálogo, contas de cliente e administrador, produtos e imagens, carrinho, endereços, pedidos, retirada e checkout via Mercado Pago. O pagamento exige configuração externa; notificações de novidades ainda não estão implementadas.
 
-Os critérios de escolha deverão considerar:
+As próximas decisões e extensões deverão considerar:
 
 - Facilidade de manutenção.
 - Segurança.
@@ -360,7 +360,6 @@ Os critérios de escolha deverão considerar:
 - Facilidade de integração.
 - Disponibilidade de ferramentas e documentação.
 
-Nenhuma linguagem, framework ou banco de dados é considerado obrigatório nesta etapa.
 
 ## 📈 17. Indicadores de sucesso
 
@@ -403,8 +402,10 @@ https://isababy-laces-manage-piv3.bolt.host
 
 **Versão:** 0.1.0
 
-**Status:** Especificação e planejamento do MVP.
+**Status:** MVP em desenvolvimento com autenticação e operações principais conectadas ao Supabase; pagamento depende das credenciais do Mercado Pago e notificações de novidades ainda não estão implementadas.
 
 **Idioma:** Português (Brasil).
 
 **Região de operação:** Brasil.
+
+Para configurar o Supabase e executar a aplicação localmente, consulte [MANUAL.md](MANUAL.md).

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { CheckCircle2, Clock, PackageSearch } from 'lucide-react';
 import type { Product, ProductStatus } from '@/types';
 import { formatPrice, PRODUCT_STATUS_LABELS } from '@/lib/constants';
@@ -31,7 +30,7 @@ export function ProductCard({ product, onSelect }: ProductCardProps) {
   return (
     <button
       onClick={() => onSelect(product)}
-      aria-label={`Ver detalhes de ${product.name}, ${formatPrice(product.price)}`}
+      aria-label={`Ver detalhes de ${product.name}, ${formatPrice(product.promotionalPrice ?? product.price)}`}
       className="group relative flex flex-col text-left rounded-2xl bg-surface border border-border hover:border-primary/50 hover:bg-surface-hover hover:shadow-lifted transition-all duration-200 overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-background">
@@ -69,7 +68,7 @@ export function ProductCard({ product, onSelect }: ProductCardProps) {
         </h3>
         <p className="text-xs text-secondary">{product.model}</p>
         <div className="mt-2 flex items-center justify-between">
-          <span className="text-lg font-semibold text-ink">{formatPrice(product.price)}</span>
+          <span className="text-lg font-semibold text-ink">{formatPrice(product.promotionalPrice ?? product.price)}</span>
           <span className="text-[11px] text-muted">
             {product.quantity} un.
           </span>

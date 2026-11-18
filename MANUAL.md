@@ -1,314 +1,135 @@
-# Manual de execução local — IsaBaby Laços
+# Manual de execução — IsaBaby Laços
 
-> Banco de dados: **PostgreSQL 15** via Supabase (não MySQL).
-> Se você precisa rodar em MySQL, o DDL precisa ser adaptado (tipos, funções e RLS mudam).
+## Pré-requisitos
 
----
+- Node.js 20.19+ ou 22.12+ e npm.
+- Um projeto Supabase configurado (hospedado ou local).
+- Supabase CLI e Docker Desktop apenas para aplicar migrations/testes localmente ou publicar funções.
 
-## 1. Pré-requisitos
+## 1. Configurar o frontend
 
-- Node.js 18 ou superior — `node -v`
-- npm 9 ou superior — `npm -v`
-- Navegador moderno (Chrome, Firefox, Edge)
+Na raiz do projeto, copie o exemplo e preencha as credenciais públicas do seu projeto Supabase:
 
----
-
-## 2. Instalar dependências
-
-```bash
-npm install
+```powershell
+Copy-Item .env.example .env.local
 ```
 
----
+Edite `.env.local`:
 
-## 3. Rodar o projeto
-
-```bash
-npm run dev
+```dotenv
+VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+VITE_SUPABASE_ANON_KEY=SUA_CHAVE_PUBLICA
 ```
 
-O Vite sobe o servidor em `http://localhost:5173`.
-Abra no navegador.
+Essas variáveis são usadas no navegador. **Nunca** coloque `service_role`, token do Mercado Pago ou segredo de webhook em variáveis `VITE_*`. O arquivo `.env.local` é ignorado pelo Git.
 
----
+## 2. Preparar o banco Supabase
 
-## 4. Banco de dados — como funciona
+Para um projeto hospedado, instale a Supabase CLI conforme a documentação oficial e execute:
 
-O projeto já vem com um Supabase provisionado. As credenciais estão no arquivo `.env`:
-
-```
-VITE_SUPABASE_URL=...
-VITE_SUPABASE_ANON_KEY=...
+```powershell
+supabase login
+supabase link --project-ref SEU_PROJECT_REF
+supabase db push
 ```
 
-Você **não precisa instalar nada** — o Supabase roda na nuvem e o app se conecta automaticamente.
+`db push` aplica as migrations em `supabase/migrations/`; elas criam o schema, regras de acesso, bucket de imagens e alguns produtos de exemplo. No painel Supabase, configure a URL do site e as URLs de redirecionamento do Auth, incluindo `http://localhost:5173`. Configure também o provedor de e-mail e o mínimo de senha para pelo menos 10 caracteres. A confirmação de e-mail e o envio de recuperação de senha dependem das configurações de Auth/SMTP do projeto.
 
-### 4.1 Verificar o banco pelo SQL Editor do Supabase
+### Criar a primeira conta administradora
 
-1. Acesse o painel do Supabase (https://supabase.com/dashboard).
-2. Selecione o projeto.
-3. Vá em **SQL Editor** no menu lateral.
-4. Cole e rode:
+O cadastro público cria somente clientes. Depois de aplicar as migrations, abra um PowerShell na raiz e informe a URL do projeto, a chave `service_role` apenas para esta operação administrativa, o e-mail da administradora e uma senha inicial forte (16 ou mais caracteres):
 
-```sql
--- listar tabelas
-SELECT table_name FROM information_schema.tables
-WHERE table_schema = 'public' ORDER BY table_name;
-
--- ver produtos
-SELECT id, name, model, price, quantity, status FROM products ORDER BY name;
-
--- ver perfis
-SELECT id, username, role, must_change_password, created_at FROM profiles;
-
--- ver pedidos
-SELECT number, user_id, status, total, pickup_date, created_at FROM orders ORDER BY created_at DESC;
-
--- ver itens dos pedidos
-SELECT * FROM order_items;
+```powershell
+$keyPointer = [IntPtr]::Zero
+$passwordPointer = [IntPtr]::Zero
+$secureServiceRoleKey = $null
+$secureInitialPassword = $null
+try {
+  $env:SUPABASE_URL = Read-Host 'URL do projeto Supabase'
+  $secureServiceRoleKey = Read-Host 'Chave service_role' -AsSecureString
+  $keyPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureServiceRoleKey)
+  $env:SUPABASE_SERVICE_ROLE_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($keyPointer)
+  $env:ADMIN_EMAIL = Read-Host 'E-mail da administradora'
+  $secureInitialPassword = Read-Host 'Senha inicial (mínimo 16 caracteres)' -AsSecureString
+  $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureInitialPassword)
+  $env:ADMIN_INITIAL_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+  node scripts/provision-admin.mjs
+  if ($LASTEXITCODE -ne 0) { throw 'O provisionamento da conta falhou.' }
+} finally {
+  Remove-Item Env:SUPABASE_URL, Env:SUPABASE_SERVICE_ROLE_KEY, Env:ADMIN_EMAIL, Env:ADMIN_INITIAL_PASSWORD -ErrorAction SilentlyContinue
+  if ($keyPointer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($keyPointer) }
+  if ($passwordPointer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer) }
+  if ($secureServiceRoleKey) { $secureServiceRoleKey.Dispose() }
+  if ($secureInitialPassword) { $secureInitialPassword.Dispose() }
+}
 ```
 
-### 4.2 Ver políticas RLS ativas
+O script cria o usuário e o perfil de admin sem salvar a senha no repositório. No primeiro acesso, a aplicação exige a troca da senha. Não reutilize a senha inicial nem compartilhe a chave `service_role`.
 
-```sql
-SELECT tablename, policyname, cmd, roles, qual, with_check
-FROM pg_policies
-WHERE schemaname = 'public'
-ORDER BY tablename, cmd;
+## 3. Configurar pagamentos (opcional)
+
+O catálogo, autenticação, perfil, produtos, carrinho, endereços, pedidos e agendamento podem ser exercitados sem configurar o Mercado Pago; o checkout de pagamento precisa das Edge Functions e de credenciais do provedor.
+
+Configure credenciais de teste no Mercado Pago. Copie o exemplo localmente, preencha os valores (sem os incluir no repositório) e envie-os ao projeto:
+
+```powershell
+Copy-Item supabase/functions/.env.example supabase/functions/.env
 ```
 
-### 4.3 Ver grants por role
+Edite `supabase/functions/.env` com `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET` e `PUBLIC_APP_URL` (URL pública HTTPS do site) e rode:
 
-```sql
-SELECT grantee, table_name, privilege_type
-FROM information_schema.role_table_grants
-WHERE table_schema = 'public'
-ORDER BY table_name, grantee, privilege_type;
+```powershell
+supabase secrets set --env-file supabase/functions/.env
+supabase functions deploy create-payment
+supabase functions deploy mercado-pago-webhook
 ```
 
----
+O `.env` é ignorado pelo Git; mantenha-o apenas local e não o compartilhe. Use uma URL pública HTTPS acessível pelo Mercado Pago para testar o retorno e as notificações de pagamento; `localhost` não é acessível pelo provedor. O endereço do webhook é informado pela função de checkout ao criar a preferência de pagamento. Os segredos ficam no Supabase, não no frontend.
 
-## 5. Contas de teste
+## 4. Executar a aplicação
 
-### Administradora (acesso total)
+Com `.env.local` preenchido e o banco preparado, no PowerShell:
 
-| Campo | Valor |
-|---|---|
-| E-mail | `tasianem@isababy.app` |
-| Senha | `IsaBaby#2026` |
-| Papel | admin |
-| O que pode | cadastrar/editar/excluir produtos, ver todos os pedidos |
-
-No primeiro login, o app pede troca de senha (campo `must_change_password = true`).
-
-### Cliente comum (só compras)
-
-Crie pela própria tela de cadastro do app, ou via SQL Editor:
-
-```sql
--- nao use isso — crie pela tela do app para o trigger criar o perfil automaticamente
+```powershell
+npm.cmd ci
+npm.cmd run dev
 ```
 
-> Importante: sempre cadastre novos usuários pela tela do app.
-> O trigger `on_auth_user_created` cria o perfil `customer` automaticamente.
-> Se criar direto no auth.users sem o trigger, o perfil fica NULL.
+Abra `http://localhost:5173/`. Para encerrar o servidor, pressione `Ctrl+C`. Se `npm` funcionar normalmente no seu terminal, pode usá-lo no lugar de `npm.cmd`.
 
----
+Crie uma conta de cliente pela tela de cadastro ou entre com a conta administradora provisionada. O app exige sessão para carrinho, pedidos e conta; a administração de produtos e usuários fica restrita ao perfil `admin`.
 
-## 6. O que testar
+## 5. Supabase local e testes
 
-### 6.1 Login
+Com Supabase CLI e Docker Desktop instalados e iniciados:
 
-- Login com TasianeM → entra como admin.
-- Login com cliente comum → entra como cliente.
-- E-mail/senha errados → mensagem de erro.
-
-### 6.2 Catálogo (todos os usuários)
-
-- Ver os 6 laços cadastrados.
-- Buscar por nome.
-- Clicar num laço → abre detalhes e personalização.
-- Laço indisponível (Glitter) → botão "Adicionar ao pedido" desabilitado.
-
-### 6.3 Cadastro de produtos (só admin)
-
-- Login como TasianeM → botão "Novo Cadastro" funciona.
-- Login como cliente → botão "Novo Cadastro" não aparece.
-- Tentar inserir produto direto no banco como cliente → bloqueado por RLS.
-
-### 6.4 Personalização e pedido
-
-- Escolher cor, tamanho, quantidade.
-- Total calcula automaticamente.
-- "Adicionar ao pedido" → confirmação.
-- "Finalizar pedido" → vai para tela de Pedidos.
-
-### 6.5 Pedidos e agendamento
-
-- Ver total de pedidos e pendentes.
-- Agendar retirada (data não pode ser passada, horários indisponíveis bloqueados).
-- Ver status de cada pedido.
-
-### 6.6 Validações do formulário
-
-- Nome vazio → erro.
-- Preço 0 ou negativo → erro.
-- Quantidade negativa → erro.
-- Não envia com campos inválidos.
-
----
-
-## 7. Scripts disponíveis
-
-| Comando | O que faz |
-|---|---|
-| `npm run dev` | Servidor de desenvolvimento |
-| `npm run build` | Gera versão de produção na pasta `dist/` |
-| `npm run typecheck` | Verifica tipos TypeScript |
-| `npm run lint` | Roda o ESLint |
-| `npm run preview` | Pré-visualiza a build de produção |
-
----
-
-## 8. Estrutura das tabelas
-
-```
-profiles
-  id              uuid PK → auth.users
-  username        text UNIQUE (case-insensitive)
-  role            text ('admin' | 'customer')
-  must_change_password boolean
-  created_at      timestamptz
-
-products
-  id              uuid PK
-  name            text
-  model           text
-  description     text
-  price           numeric(10,2) CHECK > 0
-  quantity        integer CHECK >= 0
-  status          text ('ativo' | 'sob_encomenda' | 'indisponivel')
-  image_url       text
-  created_at      timestamptz
-
-orders
-  id              uuid PK
-  number          integer GENERATED ALWAYS AS IDENTITY
-  user_id         uuid FK → auth.users (CASCADE)
-  status          text (6 valores)
-  pickup_date     date
-  pickup_time     text
-  duration_minutes integer CHECK 10..480
-  client_name     text
-  client_phone    text
-  total           numeric(10,2) CHECK >= 0
-  created_at      timestamptz
-
-order_items
-  id              uuid PK
-  order_id        uuid FK → orders (CASCADE)
-  product_id      uuid FK → products (SET NULL)
-  product_name    text
-  color           text
-  size            text
-  quantity        integer CHECK >= 1
-  unit_price      numeric(10,2)
-  notes           text
+```powershell
+supabase start
+supabase status
 ```
 
----
+Copie a URL e a chave `anon` exibidas por `supabase status` para `.env.local` e execute:
 
-## 9. Regras RLS resumidas
-
-| Tabela | SELECT | INSERT | UPDATE | DELETE |
-|---|---|---|---|---|
-| profiles | dono | dono | dono (só username) | bloqueado |
-| products | público | admin | admin | admin |
-| orders | dono + admin | dono | dono | bloqueado |
-| order_items | dono + admin | dono | bloqueado | bloqueado |
-
----
-
-## 10. Rodar PostgreSQL local (opcional)
-
-Se quiser rodar o banco local em vez do Supabase na nuvem:
-
-### 10.1 Instalar PostgreSQL
-
-```bash
-# Ubuntu/Debian
-sudo apt install postgresql postgresql-contrib
-sudo systemctl start postgresql
-
-# macOS (Homebrew)
-brew install postgresql@15
-brew services start postgresql@15
+```powershell
+supabase test db
 ```
 
-### 10.2 Criar banco
+O teste SQL verifica permissões, isolamento de dados, cálculo de total, reserva de estoque e validação de retirada. Ele roda contra o banco local, não contra o projeto de produção. Para encerrar os serviços locais, use `supabase stop`.
 
-```bash
-sudo -u postgres psql
-CREATE DATABASE isababy;
-CREATE USER isababy_user WITH PASSWORD 'sua_senha';
-GRANT ALL PRIVILEGES ON DATABASE isababy TO isababy_user;
-\q
+## 6. Verificações do frontend
+
+```powershell
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run build
+npm.cmd run preview
 ```
 
-### 10.3 Importar o schema
+`preview` serve a build de produção localmente; abra o endereço que o Vite indicar.
 
-Os arquivos de migration estão em `supabase/migrations/`.
-Rode em ordem pelo psql:
+## Problemas comuns
 
-```bash
-psql -U isababy_user -d isababy -f supabase/migrations/20261115201929_create_auth_catalog_orders_schema.sql.sql
-psql -U isababy_user -d isababy -f supabase/migrations/20261116224023_backend_modeling_complete.sql.sql
-psql -U isababy_user -d isababy -f supabase/migrations/20261116224035_revoke_trigger_functions_execute.sql.sql
-```
-
-> Aviso: as funções `auth.uid()` e `auth.users` são específicas do Supabase.
-> Para rodar em PostgreSQL puro, você precisará adaptar:
-> - Criar uma tabela `users` própria ou usar `current_user`.
-> - Substituir `auth.uid()` por uma função que retorna o ID do usuário da sessão.
-> - Remover o trigger `on_auth_user_created` (ele depende do Auth do Supabase).
-
-### 10.4 Apontar o app para o banco local
-
-Crie um arquivo `.env.local`:
-
-```
-VITE_SUPABASE_URL=http://localhost:54321
-VITE_SUPABASE_ANON_KEY=sua_chave_local
-```
-
-> Para Supabase local completo (com Auth), use o Supabase CLI:
-> `npx supabase init && npx supabase start`
-> Isso sobe todos os serviços localmente em Docker.
-
----
-
-## 11. Problemas comuns
-
-| Problema | Solução |
-|---|---|
-| Tela branca ao abrir | Verifique se `.env` existe e tem as variáveis |
-| "Invalid API key" | Credenciais do Supabase incorretas |
-| Login não funciona | Verifique e-mail/senha; a senha tem 8+ caracteres |
-| Não vê produtos | Rode o seed (já vem no migration) |
-| Cliente não cadastra produto | Comportamento correto — RLS bloqueia |
-| Perfil NULL após signup | O trigger pode não ter rodado; crie manualmente |
-
----
-
-## 12. Resetar dados de teste
-
-```sql
--- limpar pedidos (cascata leva os itens)
-DELETE FROM orders;
-
--- limpar produtos customizados (mantém os 6 do seed se nao deletar)
--- DELETE FROM products;  -- cuidado: apaga tudo
-
--- resetar senha da TasianeM via painel do Supabase
--- Auth > Users > tasianem@isababy.app > Reset password
-```
+- **A tela pede configuração Supabase:** verifique `.env.local` e reinicie o Vite depois de alterá-lo.
+- **Perfil não carrega após cadastro:** confirme que todas as migrations foram aplicadas e que o Auth do projeto permite o cadastro.
+- **Checkout indisponível:** confirme que as Edge Functions foram publicadas e que os segredos do Mercado Pago foram configurados.
+- **Não consegue agendar retirada:** somente pedidos pagos podem ser agendados; use um pedido elegível.

@@ -21,6 +21,15 @@ const statusStyles: Record<OrderStatus, { className: string; icon: LucideIcon }>
   cancelado: { className: 'text-muted border-border bg-surface line-through', icon: XCircle },
 };
 
+const paymentLabels: Record<Order['paymentStatus'], string> = {
+  not_required: 'Sem pagamento online',
+  pending: 'Pagamento pendente',
+  approved: 'Pagamento aprovado',
+  rejected: 'Pagamento recusado',
+  cancelled: 'Pagamento cancelado',
+  refunded: 'Pagamento estornado',
+};
+
 interface OrderCardProps {
   order: Order;
 }
@@ -50,11 +59,14 @@ export function OrderCard({ order }: OrderCardProps) {
       </ul>
 
       <footer className="mt-4 pt-3.5 border-t border-border flex items-center justify-between gap-3">
-        <span className="text-sm font-semibold text-ink">{formatPrice(order.total)}</span>
+        <div>
+          <p className="text-sm font-semibold text-ink">{formatPrice(order.total)}</p>
+          <p className="mt-1 text-[11px] text-muted">{paymentLabels[order.paymentStatus]}</p>
+        </div>
         {order.pickupDate && (
           <span className="inline-flex items-center gap-1.5 text-xs text-secondary">
             <CalendarClock className="w-3.5 h-3.5" aria-hidden="true" />
-            Retirada: {formatDate(order.pickupDate)}
+            Retirada: {formatDate(order.pickupDate)}{order.pickupTime ? ` às ${order.pickupTime}` : ''}
           </span>
         )}
       </footer>

@@ -1,0 +1,7 @@
+project_id = "isababy-lacos"
+
+[functions.create-payment]
+verify_jwt = true
+
+[functions.mercado-pago-webhook]
+verify_jwt = false

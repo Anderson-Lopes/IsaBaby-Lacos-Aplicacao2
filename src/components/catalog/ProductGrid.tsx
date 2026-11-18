@@ -7,7 +7,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 interface ProductGridProps {
   products: Product[];
   onSelect: (product: Product) => void;
-  onNewProduct: () => void;
+  onNewProduct?: () => void;
 }
 
 export function ProductGrid({ products, onSelect, onNewProduct }: ProductGridProps) {
@@ -29,7 +29,7 @@ export function ProductGrid({ products, onSelect, onNewProduct }: ProductGridPro
         icon={ProductIcon}
         title="Nenhum item cadastrado"
         message="Seus novos modelos aparecerão aqui."
-        action={{ label: 'Cadastrar primeiro produto', onClick: onNewProduct }}
+        action={onNewProduct ? { label: 'Cadastrar primeiro produto', onClick: onNewProduct } : undefined}
       />
     );
   }

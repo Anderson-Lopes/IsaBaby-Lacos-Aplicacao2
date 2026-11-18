@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Clock, Minus, PackageSearch, Palette, Plus, ShoppingCart } from 'lucide-react';
 import type { Product } from '@/types';
 import type { CartItem } from '@/types';
@@ -19,10 +19,12 @@ export function ProductDetails({ product, onAddToOrder, onBack }: ProductDetails
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
   const [added, setAdded] = useState(false);
+  const addedTimeout = useRef<number | null>(null);
 
-  const unavailable = product.status === 'indisponivel';
+  const unavailable = !product.isActive || product.status === 'indisponivel';
   const maxQuantity = product.status === 'ativo' ? product.quantity : 99;
-  const total = product.price * quantity;
+  const unitPrice = product.promotionalPrice ?? product.price;
+  const total = unitPrice * quantity;
   const colorLabel = COLOR_OPTIONS.find((c) => c.id === color)?.label ?? color;
 
   const invalidQuantity = quantity < 1 || quantity > maxQuantity;
@@ -40,8 +42,19 @@ export function ProductDetails({ product, onAddToOrder, onBack }: ProductDetails
       notes: notes.trim() || undefined,
     });
     setAdded(true);
-    window.setTimeout(() => setAdded(false), 3000);
+    if (addedTimeout.current !== null) window.clearTimeout(addedTimeout.current);
+    addedTimeout.current = window.setTimeout(() => {
+      setAdded(false);
+      addedTimeout.current = null;
+    }, 3000);
   };
+
+  useEffect(
+    () => () => {
+      if (addedTimeout.current !== null) window.clearTimeout(addedTimeout.current);
+    },
+    []
+  );
 
   return (
     <section aria-labelledby="details-title" className="space-y-6">
@@ -92,7 +105,8 @@ export function ProductDetails({ product, onAddToOrder, onBack }: ProductDetails
             <p className="text-sm text-muted leading-relaxed mt-3">{product.description}</p>
           )}
           <div className="mt-4 flex items-baseline gap-3">
-            <span className="text-2xl font-semibold text-ink">{formatPrice(product.price)}</span>
+            <span className="text-2xl font-semibold text-ink">{formatPrice(unitPrice)}</span>
+            {product.promotionalPrice && <span className="text-sm text-muted line-through">{formatPrice(product.price)}</span>}
             <span className="text-xs text-muted">
               {product.status === 'ativo' ? `${product.quantity} disponíveis` : 'preço unitário'}
             </span>
@@ -178,7 +192,7 @@ export function ProductDetails({ product, onAddToOrder, onBack }: ProductDetails
             <div className="rounded-xl bg-background border border-border p-4 space-y-1.5">
               <div className="flex justify-between text-xs text-muted">
                 <span>Valor unitário</span>
-                <span>{formatPrice(product.price)}</span>
+                <span>{formatPrice(unitPrice)}</span>
               </div>
               <div className="flex justify-between text-xs text-muted">
                 <span>Quantidade</span>
