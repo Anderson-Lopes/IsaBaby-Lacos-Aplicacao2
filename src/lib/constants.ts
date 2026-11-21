@@ -15,18 +15,9 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   cancelado: 'Cancelado',
 };
 
-export const COLOR_OPTIONS = [
-  { id: 'rosa', label: 'Rosa', hex: '#FFC0CB' },
-  { id: 'lilas', label: 'Lilás', hex: '#C8A2C8' },
-  { id: 'amarelo', label: 'Amarelo', hex: '#FFFF00' },
-  { id: 'verde', label: 'Verde', hex: '#93E9BE' },
-] as const;
+export const CATEGORIES = ['Clássicos', 'Premium', 'Delicados', 'Brilhantes'] as const;
 
-export const SIZE_OPTIONS = ['Pequeno', 'Médio', 'Grande'] as const;
-
-export const PICKUP_SLOTS = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00', '18:00'] as const;
-
-export const UNAVAILABLE_SLOTS = ['11:00', '15:00'];
+export const WHATSAPP_NUMBER = '5549999999999';
 
 export function formatPrice(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -35,4 +26,38 @@ export function formatPrice(value: number): string {
 export function formatDate(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
   return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+}
+
+export function buildWhatsAppUrl(
+  phone: string,
+  customerName: string,
+  items: { productName: string; quantity: number; unitPrice: number; total: number; selections: { optionName: string; value: string }[]; notes?: string }[],
+  total: number,
+  notes?: string,
+): string {
+  const lines: string[] = [];
+  lines.push(`*Novo Pedido — IsaBaby Laços*`);
+  lines.push('');
+  lines.push(`*Cliente:* ${customerName}`);
+  lines.push('');
+  lines.push('*Itens:*');
+  for (const item of items) {
+    lines.push(`• ${item.productName}`);
+    for (const sel of item.selections) {
+      lines.push(`   - ${sel.optionName}: ${sel.value}`);
+    }
+    if (item.notes) lines.push(`   - Obs: ${item.notes}`);
+    lines.push(`   - Qtd: ${item.quantity} × ${formatPrice(item.unitPrice)} = ${formatPrice(item.total)}`);
+  }
+  lines.push('');
+  lines.push(`*Total: ${formatPrice(total)}*`);
+  if (notes) {
+    lines.push('');
+    lines.push(`*Observações:* ${notes}`);
+  }
+  lines.push('');
+  lines.push('_Pedido gerado pelo site IsaBaby Laços_');
+
+  const message = lines.join('\n');
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }

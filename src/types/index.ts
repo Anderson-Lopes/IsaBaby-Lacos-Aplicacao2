@@ -30,6 +30,12 @@ export interface ProductImage {
   isPrimary: boolean;
 }
 
+export interface ProductOption {
+  id: string;
+  optionName: string;
+  optionValues: string[];
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -40,20 +46,24 @@ export interface Product {
   quantity: number;
   status: ProductStatus;
   isActive: boolean;
+  category?: string | null;
   imageUrl?: string;
   images: ProductImage[];
+  options: ProductOption[];
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface CartItem {
+  id: string;
   productId: string;
   productName: string;
-  color: string;
-  size: string;
-  quantity: number;
+  imageUrl?: string;
   unitPrice: number;
-  total: number;
+  quantity: number;
+  selections: { optionName: string; value: string }[];
   notes?: string;
+  total: number;
 }
 
 export interface Order {
@@ -62,30 +72,8 @@ export interface Order {
   items: CartItem[];
   total: number;
   status: OrderStatus;
-  paymentStatus: 'not_required' | 'pending' | 'approved' | 'rejected' | 'cancelled' | 'refunded';
-  pickupDate?: string;
-  pickupTime?: string;
-  customerName?: string;
-  customerEmail?: string;
-  addressSnapshot?: Record<string, string | null>;
+  customerName: string;
+  customerPhone: string;
+  notes?: string;
   createdAt: string;
-}
-
-export interface Address {
-  id: string;
-  recipientName: string;
-  postalCode: string;
-  state: string;
-  city: string;
-  district: string;
-  street: string;
-  number: string;
-  complement: string;
-  reference: string;
-  isDefault: boolean;
-}
-
-export interface CartLine extends CartItem {
-  id: string;
-  imageUrl?: string;
 }
