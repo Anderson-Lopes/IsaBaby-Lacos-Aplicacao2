@@ -368,9 +368,9 @@ lacos-artesanais/
 
 ## 🛠️ 16. Tecnologias
 
-As tecnologias ainda serão definidas durante a etapa de arquitetura.
+O MVP disponível neste repositório usa React 18, TypeScript e Vite no frontend, com Supabase Auth, Postgres/RLS e Storage no backend. O fluxo implementado inclui catálogo público, administração de produtos, personalização, carrinho e checkout pelo WhatsApp, sem cadastro para clientes ou pagamento online.
 
-Os critérios de escolha deverão considerar:
+As próximas decisões e extensões deverão considerar:
 
 - Facilidade de manutenção.
 - Segurança.
@@ -380,7 +380,6 @@ Os critérios de escolha deverão considerar:
 - Facilidade de integração.
 - Disponibilidade de ferramentas e documentação.
 
-Nenhuma linguagem, framework ou banco de dados é considerado obrigatório nesta etapa.
 
 ## 📈 17. Indicadores de sucesso
 
@@ -416,10 +415,17 @@ A licença do projeto será definida antes da disponibilização pública da apl
 
 **Projeto:** Sistema Web de Pedidos e Agendamentos de Laços Artesanais.
 
+
+Link para conexão e visualização do Projeto
+
+https://isababy-laces-manage-piv3.bolt.host
+
 **Versão:** 0.1.0
 
-**Status:** Especificação e planejamento do MVP.
+**Status:** MVP em desenvolvimento com administração e catálogo conectados ao Supabase e finalização de pedidos pelo WhatsApp.
 
 **Idioma:** Português (Brasil).
 
 **Região de operação:** Brasil.
+
+Para configurar o Supabase e executar a aplicação localmente, consulte [MANUAL.md](MANUAL.md).
