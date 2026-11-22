@@ -28,6 +28,8 @@ export const PICKUP_SLOTS = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00
 
 export const UNAVAILABLE_SLOTS = ['11:00', '15:00'];
 
+export const SELLER_WHATSAPP = import.meta.env.VITE_SELLER_WHATSAPP?.replace(/\D/g, '') ?? '';
+
 export function formatPrice(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }

@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { CheckCircle2, Clock, Minus, PackageSearch, Palette, Plus, ShoppingCart } from 'lucide-react';
+import { CheckCircle2, Clock, Minus, PackageSearch, Plus, ShoppingCart } from 'lucide-react';
 import type { Product } from '@/types';
 import type { CartItem } from '@/types';
-import { COLOR_OPTIONS, PRODUCT_STATUS_LABELS, SIZE_OPTIONS, formatPrice } from '@/lib/constants';
+import { PRODUCT_STATUS_LABELS, formatPrice } from '@/lib/constants';
 import { AppButton } from '@/components/ui/AppButton';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { CustomizationSelector } from './CustomizationSelector';
@@ -11,19 +11,26 @@ interface ProductDetailsProps {
   product: Product;
   onAddToOrder: (item: CartItem) => void;
   onBack: () => void;
+  initialItem?: CartItem;
 }
 
-export function ProductDetails({ product, onAddToOrder, onBack }: ProductDetailsProps) {
-  const [color, setColor] = useState<string>(COLOR_OPTIONS[0].id);
-  const [size, setSize] = useState<string>(SIZE_OPTIONS[0]);
-  const [quantity, setQuantity] = useState(1);
-  const [notes, setNotes] = useState('');
+export function ProductDetails({ product, onAddToOrder, onBack, initialItem }: ProductDetailsProps) {
+  const [customizations, setCustomizations] = useState<Record<string, string>>(() => {
+    if (initialItem?.customizations) return initialItem.customizations;
+    return product.options.reduce<Record<string, string>>((values, option) => {
+      if (option.values[0]) values[option.name] = option.values[0];
+      return values;
+    }, {});
+  });
+  const [quantity, setQuantity] = useState(initialItem?.quantity ?? 1);
+  const [notes, setNotes] = useState(initialItem?.notes ?? '');
   const [added, setAdded] = useState(false);
 
-  const unavailable = product.status === 'indisponivel';
+  const unavailable = product.status === 'indisponivel' || (product.status === 'ativo' && product.quantity <= 0);
   const maxQuantity = product.status === 'ativo' ? product.quantity : 99;
   const total = product.price * quantity;
-  const colorLabel = COLOR_OPTIONS.find((c) => c.id === color)?.label ?? color;
+  const color = Object.entries(customizations).find(([name]) => name.toLocaleLowerCase() === 'cor')?.[1] ?? '';
+  const size = Object.entries(customizations).find(([name]) => name.toLocaleLowerCase() === 'tamanho')?.[1] ?? '';
 
   const invalidQuantity = quantity < 1 || quantity > maxQuantity;
 
@@ -32,7 +39,9 @@ export function ProductDetails({ product, onAddToOrder, onBack }: ProductDetails
     onAddToOrder({
       productId: product.id,
       productName: product.name,
-      color: colorLabel,
+      imageUrl: product.imageUrl,
+      customizations,
+      color,
       size,
       quantity,
       unitPrice: product.price,
@@ -70,7 +79,7 @@ export function ProductDetails({ product, onAddToOrder, onBack }: ProductDetails
             <div className="absolute top-3 left-3">
               <StatusBadge
                 icon={unavailable ? PackageSearch : product.status === 'sob_encomenda' ? Clock : CheckCircle2}
-                label={PRODUCT_STATUS_LABELS[product.status]}
+                label={unavailable ? 'Indisponível' : PRODUCT_STATUS_LABELS[product.status]}
                 className={
                   unavailable
                     ? 'text-muted border-border bg-surface'
@@ -94,26 +103,21 @@ export function ProductDetails({ product, onAddToOrder, onBack }: ProductDetails
           <div className="mt-4 flex items-baseline gap-3">
             <span className="text-2xl font-semibold text-ink">{formatPrice(product.price)}</span>
             <span className="text-xs text-muted">
-              {product.status === 'ativo' ? `${product.quantity} disponíveis` : 'preço unitário'}
+              {unavailable ? 'Indisponível' : product.status === 'ativo' ? `${product.quantity} disponíveis` : 'preço unitário'}
             </span>
           </div>
 
           <div className="mt-6 space-y-5">
-            <CustomizationSelector
-              title="Cor"
-              icon={Palette}
-              options={COLOR_OPTIONS.map((c) => ({ id: c.id, label: c.label, hex: c.hex }))}
-              selected={color}
-              onChange={setColor}
-            />
-
-            <CustomizationSelector
-              title="Tamanho"
-              icon={RulerIcon}
-              options={SIZE_OPTIONS.map((s) => ({ id: s, label: s }))}
-              selected={size}
-              onChange={setSize}
-            />
+            {product.options.map((option, index) => (
+              <CustomizationSelector
+                key={option.id ?? option.name}
+                title={option.name}
+                icon={index === 0 ? PaletteIcon : RulerIcon}
+                options={option.values.map((value) => ({ id: value, label: value }))}
+                selected={customizations[option.name] ?? ''}
+                onChange={(value) => setCustomizations((current) => ({ ...current, [option.name]: value }))}
+              />
+            ))}
 
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-secondary mb-2.5">
@@ -176,6 +180,11 @@ export function ProductDetails({ product, onAddToOrder, onBack }: ProductDetails
             </div>
 
             <div className="rounded-xl bg-background border border-border p-4 space-y-1.5">
+              {Object.entries(customizations).map(([name, value]) => (
+                <div key={name} className="flex justify-between text-xs text-muted">
+                  <span>{name}</span><span>{value}</span>
+                </div>
+              ))}
               <div className="flex justify-between text-xs text-muted">
                 <span>Valor unitário</span>
                 <span>{formatPrice(product.price)}</span>
@@ -212,6 +221,16 @@ export function ProductDetails({ product, onAddToOrder, onBack }: ProductDetails
         </div>
       </div>
     </section>
+  );
+}
+
+function PaletteIcon(props: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={props.className} aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="8" cy="9" r="1" /><circle cx="12" cy="7" r="1" /><circle cx="16" cy="9" r="1" />
+      <path d="M12 21v-4a2 2 0 0 1 2-2h1a2 2 0 0 0 0-4h-1" />
+    </svg>
   );
 }
 

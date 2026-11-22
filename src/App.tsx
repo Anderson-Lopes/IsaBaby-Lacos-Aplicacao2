@@ -1,136 +1,291 @@
 import { useCallback, useState } from 'react';
 import { Ribbon, ShoppingBag } from 'lucide-react';
-import type { CartItem, Order, Product } from '@/types';
+import type { CartItem, Product, ProductDraft } from '@/types';
 import { ProductGrid } from '@/components/catalog/ProductGrid';
 import { Header } from '@/components/layout/Header';
 import { BottomNavigation } from '@/components/layout/BottomNavigation';
 import { CatalogScreen } from '@/screens/CatalogScreen';
 import { NewProductScreen } from '@/screens/NewProductScreen';
 import { OrdersScreen } from '@/screens/OrdersScreen';
+import { AuthScreen } from '@/screens/AuthScreen';
 import { ProductDetails } from '@/components/details/ProductDetails';
+import { CartScreen } from '@/screens/CartScreen';
+import { useAuth } from '@/hooks/useAuth';
 import { useShopData } from '@/hooks/useShopData';
+import { useCart } from '@/hooks/useCart';
+import { deleteProductImage, uploadProductImage } from '@/lib/productImages';
+import { createWhatsAppOrderUrl } from '@/lib/whatsapp';
 
-export type Screen = 'catalog' | 'newProduct' | 'orders';
+export type Screen = 'catalog' | 'newProduct' | 'orders' | 'cart' | 'admin' | 'changePassword';
 
 function App() {
-  const { products, orders, counts, addProduct, addOrder } = useShopData();
+  const auth = useAuth();
+  const isAdmin = auth.profile?.role === 'admin';
+  const { products, orders, counts, loading, error, saveProduct, deleteProduct, updateOrderStatus } = useShopData(isAdmin);
+  const { items: cart, setItems: setCart, error: cartError } = useCart();
   const [screen, setScreen] = useState<Screen>('catalog');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [lastScheduled, setLastScheduled] = useState<{ date: string; time: string } | null>(null);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editingCartIndex, setEditingCartIndex] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
-    window.setTimeout(() => setToast(null), 3000);
+    window.setTimeout(() => setToast(null), 3500);
   }, []);
 
   const selectedProduct = selectedProductId
-    ? products.find((p) => p.id === selectedProductId) ?? null
+    ? products.find((product) => product.id === selectedProductId) ?? null
     : null;
+  const editingProduct = editingProductId
+    ? products.find((product) => product.id === editingProductId)
+    : undefined;
 
-  const handleSaveProduct = (data: Omit<Product, 'id' | 'createdAt'>) => {
-    const created = addProduct(data);
-    setScreen('catalog');
-    setSelectedProductId(created.id);
-    showToast(`${data.name} cadastrado com sucesso!`);
-  };
-
-  const handleAddToOrder = (item: CartItem) => {
-    setCart((prev) => [...prev, item]);
-    showToast(`${item.productName} adicionado ao pedido!`);
-  };
-
-  const handleSchedule = (date: string, time: string) => {
-    setLastScheduled({ date, time });
-    showToast('Agendamento solicitado com sucesso!');
-  };
-
-  const handleConfirmPendingOrders = () => {
-    if (cart.length === 0) {
-      showToast('Adicione laços ao pedido no catálogo primeiro.');
-      setScreen('catalog');
+  const handleSignOut = async () => {
+    const result = await auth.signOut();
+    if (result.error) {
+      showToast(result.error);
       return;
     }
-    const total = cart.reduce((sum, item) => sum + item.total, 0);
-    addOrder({
-      items: cart,
-      total,
-      status: 'pendente' as Order['status'],
-    });
-    setCart([]);
-    setScreen('orders');
-    showToast('Pedido registrado com sucesso!');
+    setSelectedProductId(null);
+    setScreen('catalog');
   };
 
+  const handleSaveProduct = async (data: ProductDraft) => {
+    let uploadedImage: string | undefined;
+    try {
+      const imageUrl = data.imageFile ? await uploadProductImage(data.imageFile) : data.imageUrl;
+      if (data.imageFile) uploadedImage = imageUrl;
+      const saved = await saveProduct({ ...data, imageUrl }, editingProductId ?? undefined);
+      let cleanupWarning: string | null = null;
+      if (data.imageFile && editingProduct?.imageUrl) {
+        try {
+          await deleteProductImage(editingProduct.imageUrl);
+        } catch (imageError) {
+          cleanupWarning = imageError instanceof Error ? imageError.message : 'Produto salvo, mas a imagem anterior não foi removida.';
+        }
+      }
+      setEditingProductId(null);
+      setScreen('catalog');
+      setSelectedProductId(saved.id);
+      showToast(cleanupWarning ? `${saved.name} salvo. ${cleanupWarning}` : `${saved.name} salvo com sucesso.`);
+    } catch (saveError) {
+      if (uploadedImage) {
+        try {
+          await deleteProductImage(uploadedImage);
+        } catch (cleanupError) {
+          showToast(cleanupError instanceof Error ? cleanupError.message : 'A imagem enviada não pôde ser removida.');
+        }
+      }
+      throw saveError;
+    }
+  };
+
+  const handleDeleteProduct = async (product: Product) => {
+    if (!window.confirm(`Excluir “${product.name}” do catálogo?`)) return;
+    try {
+      await deleteProduct(product);
+      if (selectedProductId === product.id) setSelectedProductId(null);
+      try {
+        await deleteProductImage(product.imageUrl);
+        showToast('Produto excluído.');
+      } catch (imageError) {
+        showToast(imageError instanceof Error ? `Produto excluído, mas ${imageError.message}` : 'Produto excluído, mas a imagem não foi removida.');
+      }
+    } catch (deleteError) {
+      showToast(deleteError instanceof Error ? deleteError.message : 'Não foi possível excluir o produto.');
+    }
+  };
+
+  const handleAddToCart = (item: CartItem) => {
+    setCart((current) => {
+      if (editingCartIndex !== null) {
+        return current.map((cartItem, index) => index === editingCartIndex ? item : cartItem);
+      }
+      return [...current, item];
+    });
+    setEditingCartIndex(null);
+    setSelectedProductId(null);
+    showToast(editingCartIndex !== null ? 'Item atualizado no carrinho.' : `${item.productName} adicionado ao carrinho.`);
+  };
+
+  const handleWhatsAppCheckout = (customerName: string, observations: string) => {
+    try {
+      window.location.assign(createWhatsAppOrderUrl(cart, customerName, observations));
+    } catch (checkoutError) {
+      showToast(checkoutError instanceof Error ? checkoutError.message : 'Não foi possível preparar o pedido.');
+    }
+  };
+
+  const showAdminAuth = screen === 'admin' && !isAdmin;
+  const showPasswordScreen = isAdmin && (
+    auth.passwordRecovery || auth.profile?.must_change_password || screen === 'changePassword'
+  );
+
+  if (showAdminAuth || showPasswordScreen) {
+    return (
+      <AuthScreen
+        key={showPasswordScreen ? 'changePassword' : 'login'}
+        configurationError={auth.configurationError}
+        accessError={!auth.loading && auth.user && auth.profile?.role === 'customer'
+          ? 'Esta conta não tem permissão de administrador. Use a conta administrativa autorizada.'
+          : null}
+        loadingProfile={auth.loading && Boolean(auth.user)}
+        passwordRecovery={auth.passwordRecovery}
+        mustChangePassword={auth.profile?.must_change_password}
+        changePassword={screen === 'changePassword'}
+        onSignIn={auth.signIn}
+        onSendPasswordReset={auth.sendPasswordReset}
+        onUpdatePassword={auth.updatePassword}
+        onSignOut={auth.user ? auth.signOut : undefined}
+        onCancelPasswordChange={() => setScreen('catalog')}
+      />
+    );
+  }
+
   const showDetails = screen === 'catalog' && selectedProduct;
+  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <div className="min-h-screen flex flex-col">
       <Header
+        username={auth.profile?.username}
+        isAdmin={isAdmin}
+        cartCount={cartCount}
+        onAdminLogin={() => {
+          const enterAdmin = async () => {
+            if (auth.user && !isAdmin) {
+              const result = await auth.signOut();
+              if (result.error) {
+                showToast(result.error);
+                return;
+              }
+            }
+            setSelectedProductId(null);
+            setScreen('admin');
+          };
+          void enterAdmin();
+        }}
+        onCart={() => {
+          setSelectedProductId(null);
+          setScreen('cart');
+        }}
         onNewProduct={() => {
           setSelectedProductId(null);
+          setEditingProductId(null);
           setScreen('newProduct');
         }}
+        onChangePassword={() => setScreen('changePassword')}
+        onSignOut={() => void handleSignOut()}
       />
 
       <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-28 md:pb-24">
-        {showDetails ? (
+        {cartError && (
+          <p role="alert" className="mb-4 rounded-xl border border-primary/40 bg-primary/10 p-4 text-sm text-primary">
+            {cartError} Limpe o armazenamento local do site para criar um carrinho novo.
+          </p>
+        )}
+        {screen !== 'cart' && loading ? (
+          <p className="text-sm text-muted text-center py-16">Carregando catálogo...</p>
+        ) : screen !== 'cart' && error ? (
+          <p className="rounded-xl border border-primary/40 bg-primary/10 p-4 text-sm text-primary" role="alert">
+            Não foi possível carregar os dados: {error}
+          </p>
+        ) : showDetails ? (
           <ProductDetails
+            key={`${selectedProduct.id}-${editingCartIndex ?? 'new'}`}
             product={selectedProduct}
-            onAddToOrder={handleAddToOrder}
-            onBack={() => setSelectedProductId(null)}
+            initialItem={editingCartIndex === null ? undefined : cart[editingCartIndex]}
+            onAddToOrder={handleAddToCart}
+            onBack={() => {
+              setSelectedProductId(null);
+              setEditingCartIndex(null);
+            }}
           />
         ) : screen === 'catalog' ? (
           <CatalogScreen productCount={products.length}>
             <ProductGrid
               products={products}
-              onSelect={(product) => setSelectedProductId(product.id)}
-              onNewProduct={() => setScreen('newProduct')}
+              isAdmin={isAdmin}
+              onSelect={(product) => {
+                setSelectedProductId(product.id);
+                setEditingCartIndex(null);
+              }}
+              onEdit={(product) => {
+                setEditingProductId(product.id);
+                setScreen('newProduct');
+              }}
+              onDelete={(product) => void handleDeleteProduct(product)}
+              onNewProduct={isAdmin ? () => setScreen('newProduct') : undefined}
             />
-            <div className="mt-8 flex justify-center">
-              <button
-                onClick={handleConfirmPendingOrders}
-                disabled={cart.length === 0}
-                className="inline-flex items-center gap-2 min-h-[44px] px-5 rounded-xl bg-secondary text-background text-sm font-semibold hover:bg-secondary/85 transition-colors disabled:opacity-40 disabled:pointer-events-none"
-              >
-                <ShoppingBag className="w-4 h-4" aria-hidden="true" />
-                {cart.length > 0
-                  ? `Finalizar pedido (${cart.length} ${cart.length === 1 ? 'item' : 'itens'})`
-                  : 'Finalizar pedido'}
-              </button>
-            </div>
           </CatalogScreen>
-        ) : screen === 'newProduct' ? (
-          <NewProductScreen onSave={handleSaveProduct} onCancel={() => setScreen('catalog')} />
-        ) : (
+        ) : screen === 'cart' ? (
+          <CartScreen
+            items={cart}
+            onQuantityChange={(index, quantity) => {
+              if (quantity < 1) return;
+              setCart((current) => current.map((item, itemIndex) => itemIndex === index
+                ? { ...item, quantity, total: item.unitPrice * quantity }
+                : item));
+            }}
+            onRemove={(index) => setCart((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+            onEdit={(index) => {
+              setEditingCartIndex(index);
+              setSelectedProductId(cart[index].productId);
+              setScreen('catalog');
+            }}
+            onContinueShopping={() => setScreen('catalog')}
+            onCheckout={handleWhatsAppCheckout}
+          />
+        ) : screen === 'newProduct' && isAdmin ? (
+          <NewProductScreen
+            product={editingProduct}
+            onSave={handleSaveProduct}
+            onCancel={() => {
+              setEditingProductId(null);
+              setScreen('catalog');
+            }}
+          />
+        ) : screen === 'orders' && isAdmin ? (
           <OrdersScreen
             orders={orders}
             pendingCount={counts.pending}
-            onSchedule={handleSchedule}
-            lastScheduled={lastScheduled}
+            onStatusChange={(orderId, status) => {
+              void updateOrderStatus(orderId, status).catch((statusError: unknown) => {
+                showToast(statusError instanceof Error ? statusError.message : 'Não foi possível atualizar o pedido.');
+              });
+            }}
           />
+        ) : (
+          <CatalogScreen productCount={products.length}>
+            <ProductGrid products={products} onSelect={(product) => setSelectedProductId(product.id)} />
+          </CatalogScreen>
         )}
       </main>
 
       {toast && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="fixed left-1/2 -translate-x-1/2 bottom-24 md:bottom-8 z-50 flex items-center gap-2 rounded-full bg-surface-hover border border-primary/40 px-5 py-3 text-sm text-primary shadow-lifted"
-        >
+        <div role="status" aria-live="polite"
+          className="fixed left-1/2 -translate-x-1/2 bottom-24 md:bottom-8 z-50 flex items-center gap-2 rounded-full bg-surface-hover border border-primary/40 px-5 py-3 text-sm text-primary shadow-lifted">
           <Ribbon className="w-4 h-4 shrink-0" aria-hidden="true" />
           {toast}
         </div>
       )}
 
-      <BottomNavigation
-        active={screen}
+      <BottomNavigation active={screen} isAdmin={isAdmin}
         onChange={(next) => {
-          if (next === 'catalog') setSelectedProductId(null);
+          if (next === 'catalog') {
+            setSelectedProductId(null);
+            setEditingCartIndex(null);
+          }
           setScreen(next);
-        }}
-      />
+        }} />
+      {cartCount > 0 && !isAdmin && screen !== 'cart' && (
+        <button type="button" onClick={() => setScreen('cart')}
+          className="fixed right-4 bottom-20 md:bottom-6 z-30 inline-flex items-center gap-2 rounded-full bg-secondary px-5 py-3 text-sm font-semibold text-background shadow-lifted">
+          <ShoppingBag className="w-4 h-4" aria-hidden="true" />
+          Ver carrinho ({cartCount})
+        </button>
+      )}
     </div>
   );
 }

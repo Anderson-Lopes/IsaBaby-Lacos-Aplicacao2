@@ -16,13 +16,23 @@ export interface Product {
   price: number;
   quantity: number;
   status: ProductStatus;
+  category?: string | null;
+  options: ProductOption[];
   imageUrl?: string;
   createdAt: string;
+}
+
+export interface ProductOption {
+  id?: string;
+  name: string;
+  values: string[];
 }
 
 export interface CartItem {
   productId: string;
   productName: string;
+  imageUrl?: string;
+  customizations: Record<string, string>;
   color: string;
   size: string;
   quantity: number;
@@ -40,3 +50,7 @@ export interface Order {
   pickupDate?: string;
   createdAt: string;
 }
+
+export type ProductDraft = Omit<Product, 'id' | 'createdAt'> & {
+  imageFile?: File;
+};

@@ -23,9 +23,11 @@ const statusStyles: Record<OrderStatus, { className: string; icon: LucideIcon }>
 
 interface OrderCardProps {
   order: Order;
+  isAdmin?: boolean;
+  onStatusChange?: (orderId: string, status: OrderStatus) => void;
 }
 
-export function OrderCard({ order }: OrderCardProps) {
+export function OrderCard({ order, isAdmin = false, onStatusChange }: OrderCardProps) {
   const style = statusStyles[order.status];
 
   return (
@@ -58,6 +60,23 @@ export function OrderCard({ order }: OrderCardProps) {
           </span>
         )}
       </footer>
+      {isAdmin && onStatusChange && (
+        <div className="mt-3">
+          <label htmlFor={`order-status-${order.id}`} className="block text-xs font-medium text-muted mb-1">
+            Atualizar status
+          </label>
+          <select
+            id={`order-status-${order.id}`}
+            value={order.status}
+            onChange={(event) => onStatusChange(order.id, event.target.value as OrderStatus)}
+            className="input-field"
+          >
+            {Object.entries(ORDER_STATUS_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </div>
+      )}
     </article>
   );
 }
@@ -68,7 +87,9 @@ function OrderItem({ item }: { item: CartItem }) {
       <div className="min-w-0">
         <p className="text-ink font-medium truncate">{item.productName}</p>
         <p className="text-xs text-muted mt-0.5">
-          {item.color} &middot; {item.size} &middot; {item.quantity} un.
+          {Object.entries(item.customizations ?? {}).map(([name, value]) => `${name}: ${value}`).join(' · ')}
+          {Object.keys(item.customizations ?? {}).length > 0 && ' · '}
+          {item.quantity} un.
         </p>
         {item.notes && <p className="text-xs text-secondary/80 mt-0.5 italic truncate">&ldquo;{item.notes}&rdquo;</p>}
       </div>

@@ -194,15 +194,3 @@ CREATE POLICY "insert_own_order_items" ON public.order_items FOR INSERT
 TO authenticated WITH CHECK (
   EXISTS (SELECT 1 FROM public.orders WHERE orders.id = order_items.order_id AND orders.user_id = auth.uid())
 );
-
--- seed initial catalog (idempotent by name)
-INSERT INTO public.products (name, model, description, price, quantity, status, image_url)
-SELECT * FROM (VALUES
-  ('Laço Boutique', 'Modelo clássico', 'O laço clássico que nunca sai de moda. Feito em gorgurão de alta qualidade, com nó central reforçado à mão. Perfeito para o dia a dia e ocasiões especiais.', 18.00, 12, 'ativo', 'https://images.pexels.com/photos/7123092/pexels-photo-7123092.jpeg?auto=compress&cs=tinysrgb&h=650&w=940'),
-  ('Laço Isa', 'Modelo premium', 'Nosso modelo premium, com camadas duplas de fita e acabamento impecável. Um laço sofisticado para compor penteados mais elaborados.', 20.00, 8, 'ativo', 'https://images.pexels.com/photos/37420551/pexels-photo-37420551.jpeg?auto=compress&cs=tinysrgb&h=650&w=940'),
-  ('Laço Escolar', 'Modelo tradicional', 'Resistente e confortável, pensado para acompanhar a rotina escolar. Fita macia, presilha firme e cores que combinam com qualquer uniforme.', 18.00, 20, 'ativo', 'https://images.pexels.com/photos/7123117/pexels-photo-7123117.jpeg?auto=compress&cs=tinysrgb&h=650&w=940'),
-  ('Laço Florzinha', 'Modelo delicado', 'Delicado e leve, com pétalas moldadas uma a uma. Um charme para looks suaves e festivos. Produzido sob encomenda com todo cuidado.', 16.00, 5, 'sob_encomenda', 'https://images.pexels.com/photos/23495730/pexels-photo-23495730.jpeg?auto=compress&cs=tinysrgb&h=650&w=940'),
-  ('Laço Luxo', 'Modelo especial', 'Peça especial com detalhes em renda e pérolas aplicadas à mão. Edição limitada para momentos que pedem um toque a mais de elegância.', 25.00, 4, 'ativo', 'https://images.pexels.com/photos/23495728/pexels-photo-23495728.jpeg?auto=compress&cs=tinysrgb&h=650&w=940'),
-  ('Laço Glitter', 'Modelo brilhante', 'Fita com brilho espelhado que ilumina qualquer penteado. Um favorito das pequenas em festas e apresentações.', 18.00, 0, 'indisponivel', 'https://images.pexels.com/photos/7123100/pexels-photo-7123100.jpeg?auto=compress&cs=tinysrgb&h=650&w=940')
-) AS seed(name, model, description, price, quantity, status, image_url)
-WHERE NOT EXISTS (SELECT 1 FROM public.products);

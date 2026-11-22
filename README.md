@@ -13,6 +13,26 @@ A aplicação tem como objetivo digitalizar e simplificar o processo de compra, 
 
 A solução será desenvolvida inicialmente como um **MVP (Minimum Viable Product)**, priorizando as funcionalidades essenciais para validar o produto e atender às necessidades dos usuários.
 
+## Configuração do aplicativo
+
+O aplicativo usa o Supabase Auth e o banco de dados Supabase para autenticação, catálogo e pedidos.
+
+1. Crie um projeto Supabase e execute, em ordem, os arquivos SQL de `supabase/migrations/` no SQL Editor. Se o schema antigo já tiver sido aplicado, revise no painel os produtos demonstrativos que ele possa ter inserido; esta refatoração não apaga dados existentes.
+2. Crie o arquivo `.env.local` na raiz com as variáveis públicas do projeto:
+
+   ```dotenv
+   VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+   VITE_SUPABASE_ANON_KEY=sua-chave-publica
+   VITE_SELLER_WHATSAPP=
+   ```
+
+   Preencha `VITE_SELLER_WHATSAPP` com o número internacional da vendedora, somente dígitos, incluindo código do país e DDD. Sem essa configuração, o checkout informa que não está disponível.
+3. Configure no Supabase Auth a URL do aplicativo e as URLs de redirecionamento para desenvolvimento e produção. Configure o envio de e-mails para que recuperação de senha funcione. A migração cria a tabela de opções de produtos e o bucket público de imagens; o upload e a gestão ficam protegidos por RLS.
+4. Crie a conta administrativa uma única vez. No PowerShell, defina `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_EMAIL` e `ADMIN_INITIAL_PASSWORD` no ambiente local e execute `npm run bootstrap:admin`. Use a senha inicial solicitada pela administração. A chave `SUPABASE_SERVICE_ROLE_KEY` é secreta: nunca use uma variável `VITE_` para ela nem a compartilhe.
+5. A conta administrativa será identificada no aplicativo como **TasianeM** e deverá trocar a senha no primeiro acesso. Para entrar, use o e-mail associado à conta.
+
+Clientes navegam e compram sem conta. O acesso administrativo é exclusivo, validado pelo perfil no Supabase Auth e pelas políticas RLS; não há cadastro público. O carrinho é salvo no dispositivo e a finalização abre uma mensagem codificada para o WhatsApp da vendedora. Pedidos enviados pelo WhatsApp não são registrados no histórico interno.
+
 ## 🎯 2. Objetivos do projeto
 
 - Disponibilizar um catálogo digital de produtos artesanais.

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Heart, Palette, Ruler } from 'lucide-react';
+import { Check, Heart } from 'lucide-react';
 
 interface CustomizationSelectorProps {
   title: string;

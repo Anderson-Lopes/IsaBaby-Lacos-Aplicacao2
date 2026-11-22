@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Product } from '@/types';
 import { ProductCard } from './ProductCard';
 import { SearchInput } from '@/components/ui/SearchInput';
@@ -7,20 +7,28 @@ import { EmptyState } from '@/components/ui/EmptyState';
 interface ProductGridProps {
   products: Product[];
   onSelect: (product: Product) => void;
-  onNewProduct: () => void;
+  onNewProduct?: () => void;
+  isAdmin?: boolean;
+  onEdit?: (product: Product) => void;
+  onDelete?: (product: Product) => void;
 }
 
-export function ProductGrid({ products, onSelect, onNewProduct }: ProductGridProps) {
+export function ProductGrid({ products, onSelect, onNewProduct, isAdmin = false, onEdit, onDelete }: ProductGridProps) {
   const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('');
+  const categories = useMemo(
+    () => [...new Set(products.map((product) => product.category?.trim()).filter((value): value is string => Boolean(value)))].sort(),
+    [products]
+  );
 
   const filtered = products.filter((p) => {
     const q = query.trim().toLowerCase();
-    if (!q) return true;
-    return (
+    const matchesText = !q || (
       p.name.toLowerCase().includes(q) ||
       p.model.toLowerCase().includes(q) ||
       p.description.toLowerCase().includes(q)
     );
+    return matchesText && (!category || p.category === category);
   });
 
   if (products.length === 0) {
@@ -29,15 +37,19 @@ export function ProductGrid({ products, onSelect, onNewProduct }: ProductGridPro
         icon={ProductIcon}
         title="Nenhum item cadastrado"
         message="Seus novos modelos aparecerão aqui."
-        action={{ label: 'Cadastrar primeiro produto', onClick: onNewProduct }}
+        action={onNewProduct ? { label: 'Cadastrar primeiro produto', onClick: onNewProduct } : undefined}
       />
     );
   }
 
   return (
     <div>
-      <div className="mb-4">
+      <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <SearchInput value={query} onChange={setQuery} placeholder="Buscar laço por nome ou modelo..." />
+        <select value={category} onChange={(event) => setCategory(event.target.value)} className="input-field" aria-label="Filtrar por categoria">
+          <option value="">Todas as categorias</option>
+          {categories.map((value) => <option key={value} value={value}>{value}</option>)}
+        </select>
       </div>
       <p className="text-xs text-muted mb-3" aria-live="polite">
         {filtered.length === 0
@@ -55,7 +67,7 @@ export function ProductGrid({ products, onSelect, onNewProduct }: ProductGridPro
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((product) => (
             <li key={product.id}>
-              <ProductCard product={product} onSelect={onSelect} />
+              <ProductCard product={product} onSelect={onSelect} isAdmin={isAdmin} onEdit={onEdit} onDelete={onDelete} />
             </li>
           ))}
         </ul>
