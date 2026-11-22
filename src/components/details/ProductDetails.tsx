@@ -25,6 +25,7 @@ export function ProductDetails({ product, onAddToOrder, onBack, initialItem }: P
   const [quantity, setQuantity] = useState(initialItem?.quantity ?? 1);
   const [notes, setNotes] = useState(initialItem?.notes ?? '');
   const [added, setAdded] = useState(false);
+  const [imageIndex, setImageIndex] = useState(0);
 
   const unavailable = product.status === 'indisponivel' || (product.status === 'ativo' && product.quantity <= 0);
   const maxQuantity = product.status === 'ativo' ? product.quantity : 99;
@@ -63,12 +64,12 @@ export function ProductDetails({ product, onAddToOrder, onBack, initialItem }: P
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="rounded-2xl overflow-hidden bg-surface border border-border shadow-soft">
+        <div className="self-start rounded-2xl overflow-hidden bg-surface border border-border shadow-soft">
           <div className="relative aspect-[4/3] bg-background">
-            {product.imageUrl ? (
+            {product.imageUrls[imageIndex] ? (
               <img
-                src={product.imageUrl}
-                alt={`Foto do ${product.name}`}
+                src={product.imageUrls[imageIndex]}
+                alt={`Foto ${imageIndex + 1} do ${product.name}`}
                 className={`w-full h-full object-cover ${unavailable ? 'grayscale opacity-40' : ''}`}
               />
             ) : (
@@ -90,6 +91,17 @@ export function ProductDetails({ product, onAddToOrder, onBack, initialItem }: P
               />
             </div>
           </div>
+          {product.imageUrls.length > 1 && (
+            <div className="flex flex-wrap gap-2 p-3" aria-label="Fotos do produto">
+              {product.imageUrls.map((url, index) => (
+                <button key={`${url}-${index}`} type="button" onClick={() => setImageIndex(index)}
+                  aria-label={`Ver foto ${index + 1}`} aria-pressed={imageIndex === index}
+                  className={`rounded-lg overflow-hidden border-2 ${imageIndex === index ? 'border-primary' : 'border-transparent'}`}>
+                  <img src={url} alt="" className="w-16 h-16 object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl bg-surface border border-border p-5 shadow-soft">

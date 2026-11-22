@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Order, Product, ProductDraft } from '@/types';
 import { PRODUCT_STATUS_LABELS, ORDER_STATUS_LABELS, PICKUP_SLOTS, UNAVAILABLE_SLOTS } from '@/lib/constants';
 import { supabase } from '@/lib/supabase';
@@ -18,6 +18,7 @@ interface ProductRow {
   quantity: number;
   status: Product['status'];
   image_url: string | null;
+  image_urls: string[];
   category: string | null;
   created_at: string;
   product_options: ProductOptionRow[];
@@ -31,6 +32,7 @@ interface OrderItemRow {
   quantity: number;
   unit_price: number;
   notes: string | null;
+  customizations: Record<string, string>;
 }
 
 interface OrderRow {
@@ -40,6 +42,9 @@ interface OrderRow {
   status: Order['status'];
   pickup_date: string | null;
   created_at: string;
+  client_name: string | null;
+  notes: string | null;
+  payment_status: Order['paymentStatus'];
   order_items: OrderItemRow[];
 }
 
@@ -52,6 +57,7 @@ const mapProduct = (row: ProductRow): Product => ({
   quantity: row.quantity,
   status: row.status,
   imageUrl: row.image_url ?? undefined,
+  imageUrls: row.image_urls?.length ? row.image_urls : row.image_url ? [row.image_url] : [],
   category: row.category,
   createdAt: row.created_at,
   options: (row.product_options ?? []).map((option) => ({
@@ -66,6 +72,9 @@ const mapOrder = (row: OrderRow): Order => ({
   number: String(row.number).padStart(4, '0'),
   total: Number(row.total),
   status: row.status,
+  paymentStatus: row.payment_status,
+  customerName: row.client_name ?? undefined,
+  notes: row.notes ?? undefined,
   pickupDate: row.pickup_date ?? undefined,
   createdAt: row.created_at,
   items: row.order_items.map((item) => ({
@@ -73,7 +82,9 @@ const mapOrder = (row: OrderRow): Order => ({
     productName: item.product_name,
     color: item.color,
     size: item.size,
-    customizations: { Cor: item.color, Tamanho: item.size },
+    customizations: Object.keys(item.customizations ?? {}).length
+      ? item.customizations
+      : Object.fromEntries([['Cor', item.color], ['Tamanho', item.size]].filter(([, value]) => value)),
     quantity: item.quantity,
     unitPrice: Number(item.unit_price),
     total: Number(item.unit_price) * item.quantity,
@@ -136,7 +147,7 @@ export function useShopData(isAdmin: boolean) {
     if (!isAdmin) throw new Error('Somente a administração pode gerenciar produtos.');
     if (!supabase) throw new Error('Supabase não está configurado.');
 
-    const { data: row, error: saveError } = await supabase.rpc('save_product_with_options', {
+    const { data: row, error: saveError } = await supabase.rpc('save_product_with_gallery', {
       p_product_id: productId ?? null,
       p_name: data.name.trim(),
       p_model: data.model.trim(),
@@ -144,13 +155,13 @@ export function useShopData(isAdmin: boolean) {
       p_price: data.price,
       p_quantity: data.quantity,
       p_status: data.status,
-      p_image_url: data.imageUrl ?? null,
+      p_image_urls: data.imageUrls,
       p_category: data.category?.trim() || null,
       p_options: data.options.map((option) => ({
         name: option.name.trim(),
         values: option.values.map((value) => value.trim()).filter(Boolean),
       })),
-    });
+    }).single();
     if (saveError) throw new Error(saveError.message);
 
     const product = mapProduct({
@@ -188,6 +199,23 @@ export function useShopData(isAdmin: boolean) {
     setOrders((current) => current.map((order) => order.id === orderId ? { ...order, status } : order));
   };
 
+  const confirmOrderPaid = async (orderId: string): Promise<void> => {
+    if (!isAdmin) throw new Error('Somente a administração pode confirmar pagamentos.');
+    if (!supabase) throw new Error('Supabase não está configurado.');
+    const { error: paymentError } = await supabase.rpc('confirm_order_paid', { p_order_id: orderId });
+    if (paymentError) throw new Error(paymentError.message);
+    setOrders((current) => current.map((order) => order.id === orderId ? { ...order, paymentStatus: 'pago' } : order));
+  };
+
+  const refreshOrders = useCallback(async (): Promise<void> => {
+    if (!isAdmin) throw new Error('Somente a administração pode consultar pedidos.');
+    if (!supabase) throw new Error('Supabase não está configurado.');
+    const { data, error: refreshError } = await supabase.from('orders')
+      .select('*, order_items(*)').order('created_at', { ascending: false });
+    if (refreshError) throw new Error(refreshError.message);
+    setOrders((data as OrderRow[]).map(mapOrder));
+  }, [isAdmin]);
+
   const counts = useMemo(
     () => ({
       products: products.length,
@@ -206,6 +234,8 @@ export function useShopData(isAdmin: boolean) {
     saveProduct,
     deleteProduct,
     updateOrderStatus,
+    confirmOrderPaid,
+    refreshOrders,
     productStatusLabels: PRODUCT_STATUS_LABELS,
     orderStatusLabels: ORDER_STATUS_LABELS,
     pickupSlots: PICKUP_SLOTS,

@@ -19,6 +19,7 @@ export interface Product {
   category?: string | null;
   options: ProductOption[];
   imageUrl?: string;
+  imageUrls: string[];
   createdAt: string;
 }
 
@@ -39,6 +40,12 @@ export interface CartItem {
   unitPrice: number;
   total: number;
   notes?: string;
+  pendingOrder?: {
+    token: string;
+    customerName: string;
+    observations: string;
+    number?: number;
+  };
 }
 
 export interface Order {
@@ -47,10 +54,13 @@ export interface Order {
   items: CartItem[];
   total: number;
   status: OrderStatus;
+  paymentStatus: 'pendente' | 'pago';
+  customerName?: string;
+  notes?: string;
   pickupDate?: string;
   createdAt: string;
 }
 
 export type ProductDraft = Omit<Product, 'id' | 'createdAt'> & {
-  imageFile?: File;
+  imageFiles?: File[];
 };

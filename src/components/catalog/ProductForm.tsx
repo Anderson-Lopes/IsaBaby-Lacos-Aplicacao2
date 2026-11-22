@@ -56,7 +56,8 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
     status: product?.status ?? 'ativo',
     options: toOptionLines(product),
   });
-  const [imageFile, setImageFile] = useState<File | undefined>();
+  const [imageUrls, setImageUrls] = useState<string[]>(product?.imageUrls ?? []);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<FormErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -78,6 +79,10 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
     if (!form.quantity.trim() || !Number.isInteger(quantity) || quantity < 0) validation.quantity = 'Informe uma quantidade inteira não negativa.';
     const parsedOptions = validateOptions(form.options);
     if (parsedOptions.error) validation.options = parsedOptions.error;
+    if (imageUrls.length + imageFiles.length > 20) {
+      setError('Um produto pode ter no máximo 20 fotos.');
+      return;
+    }
     if (Object.keys(validation).length > 0) {
       setErrors(validation);
       return;
@@ -93,8 +98,9 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
         price,
         quantity,
         status: form.status,
-        imageUrl: product?.imageUrl,
-        imageFile,
+        imageUrl: imageUrls[0],
+        imageUrls,
+        imageFiles,
         options: parsedOptions.options ?? [],
       });
     } catch (saveError) {
@@ -146,15 +152,22 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
 
       <div>
         <label htmlFor="product-image" className="block text-xs font-semibold text-secondary mb-2">
-          <span className="inline-flex items-center gap-1.5"><ImagePlus className="w-4 h-4" /> Foto do produto</span>
+          <span className="inline-flex items-center gap-1.5"><ImagePlus className="w-4 h-4" /> Fotos do produto</span>
         </label>
-        <input id="product-image" type="file" accept="image/*"
-          onChange={(event) => setImageFile(event.target.files?.[0])}
+        <input id="product-image" type="file" accept="image/avif,image/gif,image/jpeg,image/png,image/webp" multiple
+          onChange={(event) => setImageFiles(Array.from(event.target.files ?? []))}
           className="input-field file:mr-3 file:border-0 file:bg-transparent file:text-primary" />
-        <p className="mt-1 text-xs text-muted">
-          {imageFile?.name ?? (product?.imageUrl ? 'Envie outra imagem para substituir a atual.' : 'Envie uma imagem de até 5 MB.')}
-        </p>
-        {product?.imageUrl && !imageFile && <img src={product.imageUrl} alt="" className="mt-3 h-24 w-24 rounded-xl object-cover" />}
+        <p className="mt-1 text-xs text-muted">Selecione até 20 fotos, de até 5 MB cada. A primeira será a capa.</p>
+        {imageFiles.length > 0 && <p className="mt-1 text-xs text-muted">{imageFiles.length} foto(s) selecionada(s) para envio.</p>}
+        <div className="mt-3 flex flex-wrap gap-3">
+          {imageUrls.map((url, index) => (
+            <div key={`${url}-${index}`} className="text-center">
+              <img src={url} alt={`Foto ${index + 1} do produto`} className="h-24 w-24 rounded-xl object-cover" />
+              <button type="button" onClick={() => setImageUrls((current) => current.filter((_, position) => position !== index))}
+                className="mt-1 text-xs text-primary underline">Remover foto {index + 1}</button>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 pt-1">

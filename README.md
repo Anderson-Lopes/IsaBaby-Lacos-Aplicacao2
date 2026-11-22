@@ -31,7 +31,11 @@ O aplicativo usa o Supabase Auth e o banco de dados Supabase para autenticação
 4. Crie a conta administrativa uma única vez. No PowerShell, defina `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_EMAIL` e `ADMIN_INITIAL_PASSWORD` no ambiente local e execute `npm run bootstrap:admin`. Use a senha inicial solicitada pela administração. A chave `SUPABASE_SERVICE_ROLE_KEY` é secreta: nunca use uma variável `VITE_` para ela nem a compartilhe.
 5. A conta administrativa será identificada no aplicativo como **TasianeM** e deverá trocar a senha no primeiro acesso. Para entrar, use o e-mail associado à conta.
 
-Clientes navegam e compram sem conta. O acesso administrativo é exclusivo, validado pelo perfil no Supabase Auth e pelas políticas RLS; não há cadastro público. O carrinho é salvo no dispositivo e a finalização abre uma mensagem codificada para o WhatsApp da vendedora. Pedidos enviados pelo WhatsApp não são registrados no histórico interno.
+Clientes navegam e compram sem conta. O acesso administrativo é exclusivo, validado pelo perfil no Supabase Auth e pelas políticas RLS; não há cadastro público. A finalização registra o pedido e abre o WhatsApp em outra aba. Na tela de pedidos, a administração confirma manualmente os pagamentos recebidos; a loja consulta essa confirmação e remove somente os itens daquele pedido do carrinho. Itens enviados não podem ser alterados enquanto aguardam pagamento; se o pedido for cancelado, voltam a ficar editáveis.
+
+O acompanhamento do carrinho depende do armazenamento local do mesmo navegador e dispositivo. Ao limpar os dados do site, esse acompanhamento é perdido, mas os pedidos permanecem no histórico administrativo. Caso o envio ao WhatsApp falhe, use a opção de reabrir a mensagem no carrinho; o mesmo pedido não será duplicado.
+
+Para instalações existentes, execute a nova migração `20261121220000_guest_orders_and_product_gallery.sql` no SQL Editor antes de usar esses recursos. Ela preserva os produtos e pedidos existentes, adiciona a galeria de fotos e permite registrar pedidos de visitantes sem abrir a leitura dos pedidos para o público. A administração pode adicionar ou remover fotos ao editar um produto; a primeira foto é a capa.
 
 ## 🎯 2. Objetivos do projeto
 

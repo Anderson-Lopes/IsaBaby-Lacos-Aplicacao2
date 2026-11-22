@@ -15,14 +15,15 @@ import { useShopData } from '@/hooks/useShopData';
 import { useCart } from '@/hooks/useCart';
 import { deleteProductImage, uploadProductImage } from '@/lib/productImages';
 import { createWhatsAppOrderUrl } from '@/lib/whatsapp';
+import { getGuestOrderStatus, newOrderToken, registerGuestOrder } from '@/lib/guestOrders';
 
 export type Screen = 'catalog' | 'newProduct' | 'orders' | 'cart' | 'admin' | 'changePassword';
 
 function App() {
   const auth = useAuth();
   const isAdmin = auth.profile?.role === 'admin';
-  const { products, orders, counts, loading, error, saveProduct, deleteProduct, updateOrderStatus } = useShopData(isAdmin);
-  const { items: cart, setItems: setCart, error: cartError } = useCart();
+  const { products, orders, counts, loading, error, saveProduct, deleteProduct, updateOrderStatus, confirmOrderPaid, refreshOrders } = useShopData(isAdmin);
+  const { items: cart, setItems: setCart, error: cartError, syncError } = useCart();
   const [screen, setScreen] = useState<Screen>('catalog');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -52,15 +53,18 @@ function App() {
   };
 
   const handleSaveProduct = async (data: ProductDraft) => {
-    let uploadedImage: string | undefined;
+    const uploadedImages: string[] = [];
+    let saving = false;
     try {
-      const imageUrl = data.imageFile ? await uploadProductImage(data.imageFile) : data.imageUrl;
-      if (data.imageFile) uploadedImage = imageUrl;
-      const saved = await saveProduct({ ...data, imageUrl }, editingProductId ?? undefined);
+      for (const file of data.imageFiles ?? []) uploadedImages.push(await uploadProductImage(file));
+      const imageUrls = [...data.imageUrls, ...uploadedImages];
+      saving = true;
+      const saved = await saveProduct({ ...data, imageUrl: imageUrls[0], imageUrls }, editingProductId ?? undefined);
       let cleanupWarning: string | null = null;
-      if (data.imageFile && editingProduct?.imageUrl) {
+      for (const url of editingProduct?.imageUrls ?? []) {
+        if (imageUrls.includes(url)) continue;
         try {
-          await deleteProductImage(editingProduct.imageUrl);
+          await deleteProductImage(url);
         } catch (imageError) {
           cleanupWarning = imageError instanceof Error ? imageError.message : 'Produto salvo, mas a imagem anterior não foi removida.';
         }
@@ -70,11 +74,13 @@ function App() {
       setSelectedProductId(saved.id);
       showToast(cleanupWarning ? `${saved.name} salvo. ${cleanupWarning}` : `${saved.name} salvo com sucesso.`);
     } catch (saveError) {
-      if (uploadedImage) {
-        try {
-          await deleteProductImage(uploadedImage);
-        } catch (cleanupError) {
-          showToast(cleanupError instanceof Error ? cleanupError.message : 'A imagem enviada não pôde ser removida.');
+      if (!saving) {
+        for (const url of uploadedImages) {
+          try {
+            await deleteProductImage(url);
+          } catch (cleanupError) {
+            showToast(cleanupError instanceof Error ? cleanupError.message : 'Uma imagem enviada não pôde ser removida.');
+          }
         }
       }
       throw saveError;
@@ -87,7 +93,7 @@ function App() {
       await deleteProduct(product);
       if (selectedProductId === product.id) setSelectedProductId(null);
       try {
-        await deleteProductImage(product.imageUrl);
+        for (const url of product.imageUrls) await deleteProductImage(url);
         showToast('Produto excluído.');
       } catch (imageError) {
         showToast(imageError instanceof Error ? `Produto excluído, mas ${imageError.message}` : 'Produto excluído, mas a imagem não foi removida.');
@@ -109,12 +115,45 @@ function App() {
     showToast(editingCartIndex !== null ? 'Item atualizado no carrinho.' : `${item.productName} adicionado ao carrinho.`);
   };
 
-  const handleWhatsAppCheckout = (customerName: string, observations: string) => {
+  const sendPendingOrder = async (items: CartItem[], pending: NonNullable<CartItem['pendingOrder']>) => {
+    createWhatsAppOrderUrl(items, pending.customerName, pending.observations);
+    const whatsappWindow = window.open('about:blank', '_blank');
+    if (!whatsappWindow) throw new Error('Permita a abertura de novas abas para enviar o pedido pelo WhatsApp.');
+    whatsappWindow.opener = null;
     try {
-      window.location.assign(createWhatsAppOrderUrl(cart, customerName, observations));
-    } catch (checkoutError) {
-      showToast(checkoutError instanceof Error ? checkoutError.message : 'Não foi possível preparar o pedido.');
+      const number = await registerGuestOrder(pending.token, pending.customerName, pending.observations, items);
+      setCart((current) => current.map((item) => item.pendingOrder?.token === pending.token
+        ? { ...item, pendingOrder: { ...item.pendingOrder, number } }
+        : item));
+      whatsappWindow.location.replace(createWhatsAppOrderUrl(items, pending.customerName, pending.observations, number));
+      showToast('Pedido registrado. Envie a mensagem no WhatsApp e volte à loja.');
+    } catch (cause) {
+      whatsappWindow.close();
+      throw cause;
     }
+  };
+
+  const handleWhatsAppCheckout = async (customerName: string, observations: string) => {
+    const items = cart.filter((item) => !item.pendingOrder);
+    createWhatsAppOrderUrl(items, customerName, observations);
+    const pending = { token: newOrderToken(), customerName, observations };
+    setCart((current) => current.map((item) => item.pendingOrder ? item : { ...item, pendingOrder: pending }));
+    await sendPendingOrder(items, pending);
+  };
+
+  const handleRetryOrder = async (token: string) => {
+    const items = cart.filter((item) => item.pendingOrder?.token === token);
+    const pending = items[0]?.pendingOrder;
+    if (!pending) throw new Error('Pedido não encontrado no carrinho.');
+    await sendPendingOrder(items, pending);
+  };
+
+  const handleReleaseDraft = async (token: string) => {
+    const status = await getGuestOrderStatus(token);
+    if (status) throw new Error('Este pedido já foi registrado. Peça à administração para cancelá-lo se precisar alterá-lo.');
+    setCart((current) => current.map((item) => item.pendingOrder?.token === token
+      ? { ...item, pendingOrder: undefined }
+      : item));
   };
 
   const showAdminAuth = screen === 'admin' && !isAdmin;
@@ -185,6 +224,9 @@ function App() {
             {cartError} Limpe o armazenamento local do site para criar um carrinho novo.
           </p>
         )}
+        {syncError && <p role="alert" className="mb-4 rounded-xl border border-primary/40 bg-primary/10 p-4 text-sm text-primary">
+          Não foi possível consultar os pagamentos: {syncError}. Tente novamente quando a conexão estiver disponível.
+        </p>}
         {screen !== 'cart' && loading ? (
           <p className="text-sm text-muted text-center py-16">Carregando catálogo...</p>
         ) : screen !== 'cart' && error ? (
@@ -236,6 +278,8 @@ function App() {
             }}
             onContinueShopping={() => setScreen('catalog')}
             onCheckout={handleWhatsAppCheckout}
+            onRetry={handleRetryOrder}
+            onReleaseDraft={handleReleaseDraft}
           />
         ) : screen === 'newProduct' && isAdmin ? (
           <NewProductScreen
@@ -250,6 +294,11 @@ function App() {
           <OrdersScreen
             orders={orders}
             pendingCount={counts.pending}
+            onRefresh={refreshOrders}
+            onConfirmPaid={async (id) => {
+              await confirmOrderPaid(id);
+              showToast('Pagamento marcado como recebido.');
+            }}
             onStatusChange={(orderId, status) => {
               void updateOrderStatus(orderId, status).catch((statusError: unknown) => {
                 showToast(statusError instanceof Error ? statusError.message : 'Não foi possível atualizar o pedido.');

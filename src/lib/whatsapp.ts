@@ -5,6 +5,7 @@ export function createWhatsAppOrderUrl(
   items: CartItem[],
   customerName: string,
   observations: string,
+  orderNumber?: number,
 ): string {
   if (!/^\d{8,15}$/.test(SELLER_WHATSAPP)) {
     throw new Error('Configure um número válido da vendedora em VITE_SELLER_WHATSAPP antes de aceitar pedidos.');
@@ -13,6 +14,7 @@ export function createWhatsAppOrderUrl(
 
   const lines = [
     'Olá! Gostaria de fazer um pedido:',
+    ...(orderNumber ? [`Pedido #${String(orderNumber).padStart(4, '0')}`] : []),
     '',
     `Cliente: ${customerName}`,
     '',

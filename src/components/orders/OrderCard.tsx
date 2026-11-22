@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   BadgeCheck,
@@ -25,10 +26,12 @@ interface OrderCardProps {
   order: Order;
   isAdmin?: boolean;
   onStatusChange?: (orderId: string, status: OrderStatus) => void;
+  onConfirmPaid?: () => Promise<void>;
 }
 
-export function OrderCard({ order, isAdmin = false, onStatusChange }: OrderCardProps) {
+export function OrderCard({ order, isAdmin = false, onStatusChange, onConfirmPaid }: OrderCardProps) {
   const style = statusStyles[order.status];
+  const [busy, setBusy] = useState(false);
 
   return (
     <article className="rounded-2xl bg-surface border border-border p-4 sm:p-5 shadow-soft transition-colors hover:border-secondary/40">
@@ -37,6 +40,7 @@ export function OrderCard({ order, isAdmin = false, onStatusChange }: OrderCardP
           <h3 className="text-sm font-semibold text-primary">
             Pedido #{order.number}
           </h3>
+          {order.customerName && <p className="text-sm text-ink mt-1">Cliente: {order.customerName}</p>}
           <p className="text-xs text-muted mt-0.5">
             {order.items.reduce((sum, item) => sum + item.quantity, 0)}{' '}
             {order.items.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'item' : 'itens'}
@@ -50,6 +54,7 @@ export function OrderCard({ order, isAdmin = false, onStatusChange }: OrderCardP
           <OrderItem key={index} item={item} />
         ))}
       </ul>
+      {order.notes && <p className="mt-3 text-xs text-secondary">Observações do pedido: {order.notes}</p>}
 
       <footer className="mt-4 pt-3.5 border-t border-border flex items-center justify-between gap-3">
         <span className="text-sm font-semibold text-ink">{formatPrice(order.total)}</span>
@@ -60,6 +65,21 @@ export function OrderCard({ order, isAdmin = false, onStatusChange }: OrderCardP
           </span>
         )}
       </footer>
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+        <span className={order.paymentStatus === 'pago' ? 'text-ink' : 'text-secondary'}>
+          Pagamento: {order.paymentStatus === 'pago' ? 'recebido' : 'pendente'}
+        </span>
+        {isAdmin && onConfirmPaid && order.paymentStatus !== 'pago' && order.status !== 'cancelado' && (
+          <button type="button" disabled={busy} className="min-h-10 rounded-lg border border-secondary px-3 text-secondary disabled:opacity-40"
+            onClick={() => {
+              if (!window.confirm('Confirma que o pagamento deste pedido foi recebido?')) return;
+              setBusy(true);
+              void onConfirmPaid().finally(() => setBusy(false));
+            }}>
+            {busy ? 'Confirmando...' : 'Marcar como pago'}
+          </button>
+        )}
+      </div>
       {isAdmin && onStatusChange && (
         <div className="mt-3">
           <label htmlFor={`order-status-${order.id}`} className="block text-xs font-medium text-muted mb-1">
