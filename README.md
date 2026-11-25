@@ -433,3 +433,31 @@ https://isababy-laces-manage-piv3.bolt.host
 **Região de operação:** Brasil.
 
 Para configurar o Supabase e executar a aplicação localmente, consulte [MANUAL.md](MANUAL.md).
+
+
+
+
+
+## Limitações da IA encontradas
+
+Durante o desenvolvimento do IsaBaby Laços, foram utilizadas ferramentas de Inteligência Artificial como apoio à implementação, estruturação e refatoração do sistema.
+
+Apesar de acelerarem o desenvolvimento, foram identificadas limitações importantes:
+
+1. **Interpretação de requisitos:** algumas sugestões da IA não correspondiam exatamente às regras de negócio definidas para o projeto, exigindo revisão humana.
+
+2. **Consistência da arquitetura:** determinadas soluções geradas precisaram ser ajustadas para manter a compatibilidade entre React, TypeScript e Supabase.
+
+3. **Validação de funcionalidades:** a geração de código não garante que os fluxos estejam funcionando corretamente em ambiente real.
+
+4. **Segurança:** configurações de autenticação, permissões e políticas RLS exigem revisão técnica, não podendo ser consideradas seguras apenas porque foram sugeridas pela IA.
+
+5. **Testes automatizados:** os cenários e seletores gerados precisam ser confrontados com a interface real antes da execução.
+
+6. **Documentação:** algumas informações podem ficar desatualizadas após alterações na aplicação, exigindo sincronização entre código, README e manual.
+
+### Conclusão
+
+A Inteligência Artificial foi utilizada como ferramenta de apoio ao desenvolvimento, não como substituta da análise técnica.
+
+Todas as sugestões precisam ser revisadas, testadas e validadas pelo desenvolvedor. A responsabilidade pela qualidade, segurança e funcionamento do sistema permanece humana.
