@@ -94,8 +94,8 @@ ORDER BY table_name, grantee, privilege_type;
 
 | Campo | Valor |
 |---|---|
-| E-mail | `tasianem@isababy.app` |
-| Senha | `IsaBaby#2026` |
+| E-mail |__________ |
+| Senha | ____________________ |
 | Papel | admin |
 | O que pode | cadastrar/editar/excluir produtos, ver todos os pedidos |
 
